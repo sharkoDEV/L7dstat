@@ -15,6 +15,8 @@
     uptime: $('#uptime'),
     workers: $('#workers'),
     connections: $('#connections'),
+    acceptedConns: $('#acceptedConns'),
+    requestLines: $('#requestLines'),
     subtitle: $('#graphSubtitle'),
     status: $('#status'),
     chart: $('#chart'),
@@ -208,6 +210,8 @@
     elements.uptime.textContent = formatDuration(payload.uptime_seconds);
     elements.workers.textContent = `${payload.workers || 0} / ${payload.cpu || 0}`;
     elements.connections.textContent = `${payload.active_conns || 0} / ${payload.max_conns || 0}`;
+    elements.acceptedConns.textContent = numberFmt.format(payload.accepted_conns || 0);
+    elements.requestLines.textContent = numberFmt.format(payload.request_lines || 0);
 
     if (Array.isArray(payload.timeline)) {
       chart.setData(payload.timeline.map((entry) => entry.rps));

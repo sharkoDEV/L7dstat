@@ -54,6 +54,9 @@ struct MetricsSnapshot {
     cpu: usize,
     active_conns: usize,
     max_conns: usize,
+    accepted_conns: u64,
+    request_lines: u64,
+    parse_errors: u64,
     timeline: Vec<DataPoint>,
 }
 
@@ -61,6 +64,9 @@ struct Metrics {
     started: Instant,
     current_sec: AtomicI64,
     active_conns: AtomicUsize,
+    accepted_conns: AtomicU64,
+    request_lines: AtomicU64,
+    parse_errors: AtomicU64,
     max_conns: usize,
     worker_count: usize,
     total_shards: Vec<PaddedU64>,
@@ -89,6 +95,9 @@ impl Metrics {
             started: Instant::now(),
             current_sec: AtomicI64::new(now),
             active_conns: AtomicUsize::new(0),
+            accepted_conns: AtomicU64::new(0),
+            request_lines: AtomicU64::new(0),
+            parse_errors: AtomicU64::new(0),
             max_conns,
             worker_count: workers,
             total_shards: (0..shard_count).map(|_| PaddedU64(AtomicU64::new(0))).collect(),
@@ -176,6 +185,9 @@ impl Metrics {
             cpu: num_cpus::get(),
             active_conns: self.active_conns.load(Ordering::Relaxed),
             max_conns: self.max_conns,
+            accepted_conns: self.accepted_conns.load(Ordering::Relaxed),
+            request_lines: self.request_lines.load(Ordering::Relaxed),
+            parse_errors: self.parse_errors.load(Ordering::Relaxed),
             timeline,
         }
     }
@@ -247,7 +259,7 @@ fn main() -> io::Result<()> {
     }
 
     let max_conns = env_usize("L7DSTAT_MAX_CONNS", workers * 65_536);
-    let close_after_hit = env_bool_default("L7DSTAT_CLOSE_AFTER_HIT", true);
+    let close_after_hit = env_bool_default("L7DSTAT_CLOSE_AFTER_HIT", false);
     let flush_every = env_u64("L7DSTAT_FLUSH_EVERY", DEFAULT_FLUSH_EVERY).max(1);
     let flush_interval = Duration::from_millis(env_u64(
         "L7DSTAT_FLUSH_INTERVAL_MS",
@@ -329,6 +341,7 @@ fn run_worker(
                 SERVER => loop {
                     match listener.accept() {
                         Ok((mut stream, _)) => {
+                            metrics.accepted_conns.fetch_add(1, Ordering::Relaxed);
                             if metrics.max_conns > 0
                                 && metrics.active_conns.load(Ordering::Relaxed) >= metrics.max_conns
                             {
@@ -438,11 +451,13 @@ fn process_requests(
         };
 
         let Some(path) = parse_path(&conn.input[..line_end]) else {
+            metrics.parse_errors.fetch_add(1, Ordering::Relaxed);
             queue(conn, BAD_REQUEST_RESPONSE);
             conn.close_after_write = true;
             conn.input.clear();
             return Ok(());
         };
+        metrics.request_lines.fetch_add(1, Ordering::Relaxed);
 
         if close_after_hit && !is_control_path(path) {
             metrics.add(conn.shard, metrics.current_sec.load(Ordering::Relaxed), 1);

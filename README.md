@@ -12,7 +12,7 @@ Layer 7 RQS capture dashboard written in Rust.
 
 ## Ubuntu VPS
 
-One-command install, accurate mode by default:
+One-command install:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sharkoDEV/L7dstat/main/install.sh | bash
@@ -38,7 +38,7 @@ ulimit -n 1048576
 ADDR=:5000 \
 L7DSTAT_WORKERS=$(nproc) \
 L7DSTAT_MAX_CONNS=200000 \
-L7DSTAT_CLOSE_AFTER_HIT=1 \
+L7DSTAT_CLOSE_AFTER_HIT=0 \
 L7DSTAT_FLUSH_EVERY=1 \
 ./target/release/l7dstat
 ```
@@ -88,7 +88,7 @@ LimitNOFILE=1048576
 Environment=ADDR=:5000
 Environment=L7DSTAT_WORKERS=0
 Environment=L7DSTAT_MAX_CONNS=200000
-Environment=L7DSTAT_CLOSE_AFTER_HIT=1
+Environment=L7DSTAT_CLOSE_AFTER_HIT=0
 Environment=L7DSTAT_FLUSH_EVERY=1
 Environment=L7DSTAT_FLUSH_INTERVAL_MS=100
 
@@ -119,7 +119,7 @@ If it stays around `1k RPS`, increase client concurrency or test from another ma
 - `ADDR=:8080` changes the listen address.
 - `L7DSTAT_WORKERS=16` changes the number of event-loop workers. `0` means all CPU cores.
 - `L7DSTAT_MAX_CONNS=200000` changes the active connection cap. Use `0` to disable it.
-- `L7DSTAT_CLOSE_AFTER_HIT=1` makes hit traffic count as soon as the request line is received, return `OK`, and close. This is the most accurate mode for hostile/new-connection traffic.
-- `L7DSTAT_CLOSE_AFTER_HIT=0` keeps hit connections alive and counts after full headers are parsed.
+- `L7DSTAT_CLOSE_AFTER_HIT=0` keeps hit connections alive and counts complete HTTP requests. This is best for normal scripts and keep-alive clients.
+- `L7DSTAT_CLOSE_AFTER_HIT=1` counts as soon as the request line is received, returns `OK`, and closes. Use it only for traffic that opens a fresh connection per hit.
 - `L7DSTAT_FLUSH_EVERY=1` counts every hit immediately for accurate live stats. Higher values are faster but less instant.
 - `L7DSTAT_FLUSH_INTERVAL_MS=100` flushes batched connection counters when `L7DSTAT_FLUSH_EVERY` is higher than `1`.
