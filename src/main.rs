@@ -49,6 +49,9 @@ struct MetricsSnapshot {
     avg_rps: f64,
     current_rps: u64,
     window_rps: f64,
+    rps_5s: f64,
+    rps_10s: f64,
+    peak_rps: u64,
     uptime_seconds: u64,
     workers: usize,
     cpu: usize,
@@ -153,7 +156,10 @@ impl Metrics {
         let start = end - CHART_SECONDS + 1;
         let mut timeline = Vec::with_capacity(CHART_SECONDS as usize);
         let mut window_total = 0;
+        let mut total_5s = 0;
+        let mut total_10s = 0;
         let mut current = 0;
+        let mut peak = 0;
 
         for sec in start..=end {
             let slot = sec.rem_euclid(HISTORY_SECONDS as i64) as usize;
@@ -169,6 +175,15 @@ impl Metrics {
             if sec == end {
                 current = rps;
             }
+            if rps > peak {
+                peak = rps;
+            }
+            if sec > end - 5 {
+                total_5s += rps;
+            }
+            if sec > end - 10 {
+                total_10s += rps;
+            }
             if sec > end - WINDOW_SECONDS {
                 window_total += rps;
             }
@@ -180,6 +195,9 @@ impl Metrics {
             avg_rps: round2(total as f64 / uptime as f64),
             current_rps: current,
             window_rps: round2(window_total as f64 / WINDOW_SECONDS as f64),
+            rps_5s: round2(total_5s as f64 / 5.0),
+            rps_10s: round2(total_10s as f64 / 10.0),
+            peak_rps: peak,
             uptime_seconds: uptime,
             workers: self.worker_count,
             cpu: num_cpus::get(),

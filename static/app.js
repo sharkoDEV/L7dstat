@@ -10,7 +10,11 @@
     total: $('#totalRequests'),
     currentRps: $('#currentRps'),
     avgRps: $('#avgRps'),
+    rps5s: $('#rps5s'),
+    rps10s: $('#rps10s'),
     windowRps: $('#windowRps'),
+    peakRps: $('#peakRps'),
+    pollRps: $('#pollRps'),
     nowRps: $('#nowRps'),
     uptime: $('#uptime'),
     workers: $('#workers'),
@@ -190,6 +194,8 @@
   }
 
   const chart = new LineChart(elements.chart, 240);
+  let lastPollTotal = null;
+  let lastPollTime = null;
 
   const formatDuration = (seconds) => {
     const safe = Math.max(0, Math.floor(seconds || 0));
@@ -205,13 +211,27 @@
     elements.total.textContent = numberFmt.format(payload.total || 0);
     elements.currentRps.textContent = numberFmt.format(payload.current_rps || 0);
     elements.avgRps.textContent = rpsFmt.format(payload.avg_rps || 0);
+    elements.rps5s.textContent = rpsFmt.format(payload.rps_5s || 0);
+    elements.rps10s.textContent = rpsFmt.format(payload.rps_10s || 0);
     elements.windowRps.textContent = rpsFmt.format(payload.window_rps || 0);
+    elements.peakRps.textContent = numberFmt.format(payload.peak_rps || 0);
     elements.nowRps.textContent = numberFmt.format(payload.current_rps || 0);
     elements.uptime.textContent = formatDuration(payload.uptime_seconds);
     elements.workers.textContent = `${payload.workers || 0} / ${payload.cpu || 0}`;
     elements.connections.textContent = `${payload.active_conns || 0} / ${payload.max_conns || 0}`;
     elements.acceptedConns.textContent = numberFmt.format(payload.accepted_conns || 0);
     elements.requestLines.textContent = numberFmt.format(payload.request_lines || 0);
+
+    const now = performance.now();
+    if (lastPollTotal !== null && lastPollTime !== null && typeof payload.total === 'number') {
+      const elapsed = Math.max(0.001, (now - lastPollTime) / 1000);
+      const delta = Math.max(0, payload.total - lastPollTotal);
+      elements.pollRps.textContent = rpsFmt.format(delta / elapsed);
+    }
+    if (typeof payload.total === 'number') {
+      lastPollTotal = payload.total;
+      lastPollTime = now;
+    }
 
     if (Array.isArray(payload.timeline)) {
       chart.setData(payload.timeline.map((entry) => entry.rps));
