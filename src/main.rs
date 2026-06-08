@@ -247,7 +247,7 @@ fn main() -> io::Result<()> {
     }
 
     let max_conns = env_usize("L7DSTAT_MAX_CONNS", workers * 65_536);
-    let close_after_hit = env_bool("L7DSTAT_CLOSE_AFTER_HIT");
+    let close_after_hit = env_bool_default("L7DSTAT_CLOSE_AFTER_HIT", true);
     let flush_every = env_u64("L7DSTAT_FLUSH_EVERY", DEFAULT_FLUSH_EVERY).max(1);
     let flush_interval = Duration::from_millis(env_u64(
         "L7DSTAT_FLUSH_INTERVAL_MS",
@@ -716,9 +716,13 @@ fn env_u64(key: &str, fallback: u64) -> u64 {
         .unwrap_or(fallback)
 }
 
-fn env_bool(key: &str) -> bool {
-    matches!(
-        env::var(key).unwrap_or_default().trim().to_ascii_lowercase().as_str(),
-        "1" | "true" | "yes" | "on"
-    )
+fn env_bool_default(key: &str, fallback: bool) -> bool {
+    match env::var(key) {
+        Ok(value) => match value.trim().to_ascii_lowercase().as_str() {
+            "1" | "true" | "yes" | "on" => true,
+            "0" | "false" | "no" | "off" => false,
+            _ => fallback,
+        },
+        Err(_) => fallback,
+    }
 }

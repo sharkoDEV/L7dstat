@@ -6,7 +6,7 @@ INSTALL_DIR="${INSTALL_DIR:-/opt/l7dstat}"
 SRC_DIR="${SRC_DIR:-$HOME/L7dstat}"
 ADDR="${ADDR:-:5000}"
 MAX_CONNS="${L7DSTAT_MAX_CONNS:-200000}"
-CLOSE_AFTER_HIT="${L7DSTAT_CLOSE_AFTER_HIT:-0}"
+CLOSE_AFTER_HIT="${L7DSTAT_CLOSE_AFTER_HIT:-1}"
 FLUSH_EVERY="${L7DSTAT_FLUSH_EVERY:-1}"
 FLUSH_INTERVAL_MS="${L7DSTAT_FLUSH_INTERVAL_MS:-100}"
 
@@ -83,7 +83,8 @@ WantedBy=multi-user.target
 EOF
 
 sudo systemctl daemon-reload
-sudo systemctl enable --now l7dstat
+sudo systemctl enable l7dstat
+sudo systemctl restart l7dstat
 
 echo
 echo "L7dstat installed and started."
