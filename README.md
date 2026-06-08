@@ -39,6 +39,7 @@ ADDR=:5000 \
 L7DSTAT_WORKERS=$(nproc) \
 L7DSTAT_MAX_CONNS=200000 \
 L7DSTAT_CLOSE_AFTER_HIT=0 \
+L7DSTAT_FLUSH_EVERY=1 \
 ./target/release/l7dstat
 ```
 
@@ -88,6 +89,8 @@ Environment=ADDR=:5000
 Environment=L7DSTAT_WORKERS=0
 Environment=L7DSTAT_MAX_CONNS=200000
 Environment=L7DSTAT_CLOSE_AFTER_HIT=0
+Environment=L7DSTAT_FLUSH_EVERY=1
+Environment=L7DSTAT_FLUSH_INTERVAL_MS=100
 
 [Install]
 WantedBy=multi-user.target
@@ -116,3 +119,5 @@ If it stays around `1k RPS`, increase client concurrency or test from another ma
 - `L7DSTAT_WORKERS=16` changes the number of event-loop workers. `0` means all CPU cores.
 - `L7DSTAT_MAX_CONNS=200000` changes the active connection cap. Use `0` to disable it.
 - `L7DSTAT_CLOSE_AFTER_HIT=1` makes hit traffic return `OK` and close immediately without parsing headers.
+- `L7DSTAT_FLUSH_EVERY=1` counts every hit immediately for accurate live stats. Higher values are faster but less instant.
+- `L7DSTAT_FLUSH_INTERVAL_MS=100` flushes batched connection counters when `L7DSTAT_FLUSH_EVERY` is higher than `1`.

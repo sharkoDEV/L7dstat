@@ -21,7 +21,8 @@ const HISTORY_SECONDS: usize = 300;
 const CHART_SECONDS: i64 = 240;
 const WINDOW_SECONDS: i64 = 60;
 const READ_BUF_SIZE: usize = 8192;
-const FLUSH_EVERY: u64 = 1024;
+const DEFAULT_FLUSH_EVERY: u64 = 1;
+const DEFAULT_FLUSH_INTERVAL_MS: u64 = 100;
 
 const HIT_RESPONSE: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: 3\r\nConnection: keep-alive\r\n\r\nOK\n";
 const HIT_CLOSE_RESPONSE: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: 3\r\nConnection: close\r\n\r\nOK\n";
@@ -211,7 +212,12 @@ impl Conn {
         }
     }
 
-    fn count_hit(&mut self, metrics: &Metrics) {
+    fn count_hit(&mut self, metrics: &Metrics, flush_every: u64) {
+        if flush_every <= 1 {
+            metrics.add(self.shard, metrics.current_sec.load(Ordering::Relaxed), 1);
+            return;
+        }
+
         let sec = metrics.current_sec.load(Ordering::Relaxed);
         if self.local_sec == 0 {
             self.local_sec = sec;
@@ -221,7 +227,7 @@ impl Conn {
             self.local_sec = sec;
         }
         self.local_hits += 1;
-        if self.local_hits >= FLUSH_EVERY {
+        if self.local_hits >= flush_every {
             self.flush(metrics);
         }
     }
@@ -242,6 +248,11 @@ fn main() -> io::Result<()> {
 
     let max_conns = env_usize("L7DSTAT_MAX_CONNS", workers * 65_536);
     let close_after_hit = env_bool("L7DSTAT_CLOSE_AFTER_HIT");
+    let flush_every = env_u64("L7DSTAT_FLUSH_EVERY", DEFAULT_FLUSH_EVERY).max(1);
+    let flush_interval = Duration::from_millis(env_u64(
+        "L7DSTAT_FLUSH_INTERVAL_MS",
+        DEFAULT_FLUSH_INTERVAL_MS,
+    ));
     let addr = normalize_addr(&env::var("ADDR").unwrap_or_else(|_| DEFAULT_ADDR.to_string()));
     let socket_addr = resolve_addr(&addr)?;
     let metrics = Arc::new(Metrics::new(workers, max_conns));
@@ -256,12 +267,13 @@ fn main() -> io::Result<()> {
     }
 
     println!(
-        "l7dstat rust fast server on {} with {} workers / {} counter shards / max {} conns / close_after_hit={}",
+        "l7dstat rust fast server on {} with {} workers / {} counter shards / max {} conns / close_after_hit={} / flush_every={}",
         addr,
         workers,
         metrics.total_shards.len(),
         max_conns,
-        close_after_hit
+        close_after_hit,
+        flush_every
     );
 
     for worker_id in 0..listener_count(workers) {
@@ -269,7 +281,16 @@ fn main() -> io::Result<()> {
         let metrics = metrics.clone();
         let assets = assets.clone();
         thread::spawn(move || {
-            if let Err(err) = run_worker(worker_id, workers, listener, metrics, assets, close_after_hit) {
+            if let Err(err) = run_worker(
+                worker_id,
+                workers,
+                listener,
+                metrics,
+                assets,
+                close_after_hit,
+                flush_every,
+                flush_interval,
+            ) {
                 eprintln!("worker {} stopped: {}", worker_id, err);
             }
         });
@@ -287,6 +308,8 @@ fn run_worker(
     metrics: Arc<Metrics>,
     assets: Arc<Assets>,
     close_after_hit: bool,
+    flush_every: u64,
+    flush_interval: Duration,
 ) -> io::Result<()> {
     let mut poll = Poll::new()?;
     poll.registry()
@@ -296,9 +319,10 @@ fn run_worker(
     let mut conns: HashMap<Token, Conn> = HashMap::with_capacity(8192);
     let mut next_token = 1usize;
     let mut next_shard = worker_id;
+    let mut last_pending_flush = Instant::now();
 
     loop {
-        poll.poll(&mut events, Some(Duration::from_millis(500)))?;
+        poll.poll(&mut events, Some(flush_interval))?;
 
         for event in events.iter() {
             match event.token() {
@@ -335,7 +359,14 @@ fn run_worker(
                     let mut remove = false;
                     if let Some(conn) = conns.get_mut(&token) {
                         if event.is_readable()
-                            && handle_read(conn, &metrics, &assets, close_after_hit).is_err()
+                            && handle_read(
+                                conn,
+                                &metrics,
+                                &assets,
+                                close_after_hit,
+                                flush_every,
+                            )
+                            .is_err()
                         {
                             remove = true;
                         }
@@ -363,6 +394,13 @@ fn run_worker(
                 }
             }
         }
+
+        if flush_every > 1 && last_pending_flush.elapsed() >= flush_interval {
+            for conn in conns.values_mut() {
+                conn.flush(&metrics);
+            }
+            last_pending_flush = Instant::now();
+        }
     }
 }
 
@@ -371,6 +409,7 @@ fn handle_read(
     metrics: &Metrics,
     assets: &Assets,
     close_after_hit: bool,
+    flush_every: u64,
 ) -> io::Result<()> {
     let mut buf = [0u8; READ_BUF_SIZE];
 
@@ -383,7 +422,7 @@ fn handle_read(
         }
     }
 
-    process_requests(conn, metrics, assets, close_after_hit)
+    process_requests(conn, metrics, assets, close_after_hit, flush_every)
 }
 
 fn process_requests(
@@ -391,6 +430,7 @@ fn process_requests(
     metrics: &Metrics,
     assets: &Assets,
     close_after_hit: bool,
+    flush_every: u64,
 ) -> io::Result<()> {
     loop {
         let Some(line_end) = find_lf(&conn.input) else {
@@ -422,7 +462,7 @@ fn process_requests(
 
         match path.as_slice() {
             b"/" | b"/hit" => {
-                conn.count_hit(metrics);
+                conn.count_hit(metrics, flush_every);
                 queue(conn, HIT_RESPONSE);
             }
             b"/dashboard" => {
@@ -436,7 +476,7 @@ fn process_requests(
             b"/static/app.js" => queue(conn, &assets.js),
             b"/static/styles.css" => queue(conn, &assets.css),
             _ => {
-                conn.count_hit(metrics);
+                conn.count_hit(metrics, flush_every);
                 queue(conn, HIT_RESPONSE);
             }
         }
@@ -666,6 +706,13 @@ fn env_usize(key: &str, fallback: usize) -> usize {
     env::var(key)
         .ok()
         .and_then(|value| value.trim().parse::<usize>().ok())
+        .unwrap_or(fallback)
+}
+
+fn env_u64(key: &str, fallback: u64) -> u64 {
+    env::var(key)
+        .ok()
+        .and_then(|value| value.trim().parse::<u64>().ok())
         .unwrap_or(fallback)
 }
 
