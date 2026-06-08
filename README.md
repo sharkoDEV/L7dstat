@@ -12,33 +12,16 @@ Layer 7 RQS capture dashboard written in Rust.
 
 ## Ubuntu VPS
 
-Install Rust:
+One-command install:
 
 ```bash
-sudo apt update
-sudo apt install -y curl build-essential pkg-config
-curl https://sh.rustup.rs -sSf | sh
-source "$HOME/.cargo/env"
-rustc --version
-cargo --version
+curl -fsSL https://raw.githubusercontent.com/sharkoDEV/L7dstat/main/install.sh | bash
 ```
 
-Tune Linux for high connection pressure:
+Aggressive close-after-hit mode:
 
 ```bash
-sudo tee /etc/sysctl.d/99-l7dstat.conf >/dev/null <<'EOF'
-fs.file-max=2097152
-net.core.somaxconn=65535
-net.core.netdev_max_backlog=250000
-net.ipv4.tcp_max_syn_backlog=262144
-net.ipv4.ip_local_port_range=1024 65535
-net.ipv4.tcp_fin_timeout=10
-net.ipv4.tcp_tw_reuse=1
-net.ipv4.tcp_fastopen=3
-EOF
-
-sudo sysctl --system
-ulimit -n 1048576
+curl -fsSL https://raw.githubusercontent.com/sharkoDEV/L7dstat/main/install.sh | L7DSTAT_CLOSE_AFTER_HIT=1 bash
 ```
 
 Build:
