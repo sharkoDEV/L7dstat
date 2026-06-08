@@ -40,7 +40,7 @@ net.ipv4.tcp_fin_timeout=10
 net.ipv4.tcp_tw_reuse=1
 net.ipv4.tcp_fastopen=3
 EOF
-sudo sysctl --system
+sudo sysctl -p /etc/sysctl.d/99-l7dstat.conf || true
 
 if [ -d "$SRC_DIR/.git" ]; then
   git -C "$SRC_DIR" pull --ff-only
