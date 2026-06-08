@@ -54,7 +54,8 @@ cd "$SRC_DIR"
 cargo build --release
 
 sudo mkdir -p "$INSTALL_DIR"
-sudo cp ./target/release/l7dstat "$INSTALL_DIR/l7dstat"
+sudo install -m 0755 ./target/release/l7dstat "$INSTALL_DIR/l7dstat.new"
+sudo mv -f "$INSTALL_DIR/l7dstat.new" "$INSTALL_DIR/l7dstat"
 sudo chmod 0755 "$INSTALL_DIR/l7dstat"
 
 sudo tee /etc/systemd/system/l7dstat.service >/dev/null <<EOF
