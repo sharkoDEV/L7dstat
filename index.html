@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>L7dstat</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="layout">
+      <header class="topbar">
+        <div>
+          <h1>L7dstat</h1>
+          <div class="muted">RQS capture - Rust multi-worker</div>
+        </div>
+        <div class="muted small">Uptime: <span id="uptime">00:00:00</span></div>
+      </header>
+
+      <section class="metrics-grid">
+        <div class="metric">
+          <div class="metric-label">Total</div>
+          <div id="totalRequests" class="metric-value">0</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">RPS</div>
+          <div id="currentRps" class="metric-value">0</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">RPS moyen</div>
+          <div id="avgRps" class="metric-value">0</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">RPS 60s</div>
+          <div id="windowRps" class="metric-value">0</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Workers / CPU</div>
+          <div id="workers" class="metric-value">-</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Connexions</div>
+          <div id="connections" class="metric-value">-</div>
+        </div>
+      </section>
+
+      <section>
+        <div class="chart-header">
+          <div>
+            <div class="chart-title">Requests / second</div>
+            <div id="graphSubtitle" class="muted">En attente de donnees</div>
+          </div>
+          <div class="now">
+            <div class="muted">Live RPS</div>
+            <div id="nowRps" class="now-val">0</div>
+          </div>
+        </div>
+        <canvas id="chart" width="1400" height="520" aria-label="Graph"></canvas>
+        <div class="status muted small" id="status"></div>
+      </section>
+    </main>
+
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>
